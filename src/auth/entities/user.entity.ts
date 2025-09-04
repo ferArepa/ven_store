@@ -23,4 +23,11 @@ export class User {
     nullable: false
   })
   password: string
+
+  @Column('set',{
+    enum: ['user','superUser', 'admin'],
+    default: ['user']
+
+  })
+  roles: string[]
 }

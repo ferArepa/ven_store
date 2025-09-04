@@ -6,6 +6,10 @@ import { User } from './entities/user.entity';
 import * as bcrypt from 'bcrypt'
 import * as dotenv from 'dotenv'
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { HttpStatusCode } from 'axios';
 
 
 
@@ -14,17 +18,19 @@ export class AuthService {
 
   constructor(
     @InjectRepository(User)
-    private readonly userRepository: Repository<User>
+    private readonly userRepository: Repository<User>,
+    private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
   ) { }
 
   async createUser(createUserDto: CreateUserDto) {
 
-    if (process.env.BCRYPT_SALT === '')
+    if (this.configService.get("BCRYPT_SALT") === '')
       throw new Error('Falta la variable de entorno BCRYPT_SALT')
 
     const { email, name, password } = createUserDto
 
-    const hashedPassword = bcrypt.hashSync(password, process.env.BCRYPT_SALT!)
+    const hashedPassword = bcrypt.hashSync(password, +this.configService.get("BCRYPT_SALT")!)
 
     try {
 
@@ -36,12 +42,20 @@ export class AuthService {
 
       await this.userRepository.save(createdUser)
 
-      return `usuario ${name} creado exitosamente`
+      return {
+        ...createdUser,
+        token: this.generatejwt({ email })
+      }
 
     } catch (error) {
       this.handleError(error)
     }
   }
+
+  generatejwt(payload: JwtPayload) {
+    return this.jwtService.sign(payload)
+  }
+
 
   async loginUser(loginUserDto: LoginUserDto) {
 
@@ -58,8 +72,8 @@ export class AuthService {
 
       bcrypt.compareSync(password, usuario.password)
 
-
-      return `te has logeado correctamente :)`
+      HttpStatusCode.Ok
+      return {token: this.generatejwt({email})}
 
     } catch (error) {
       this.handleError(error)
